@@ -6,7 +6,7 @@ const memberStore = useMemberStore()
 
 // 测试请求
 const getData = async () => {
-  const res = await http({
+  const res = await http<string[]>({
     method: 'GET',
     url: '/home/banner',
     header: {}
