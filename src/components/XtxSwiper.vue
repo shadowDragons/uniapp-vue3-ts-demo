@@ -6,10 +6,8 @@ const activeIndex = ref(0)
 
 // 当 swiper 下标发生变化时触发
 const onChange: UniHelper.SwiperOnChange = (ev) => {
-  // ! 非空断言，主观上排除掉空值情况
   activeIndex.value = ev.detail.current
 }
-
 // 定义 props 接收
 defineProps<{
   list: BannerItem[]
@@ -36,3 +34,37 @@ defineProps<{
     </view>
   </view>
 </template>
+
+<style lang="scss">
+/* 轮播图 */
+.carousel {
+  height: 280rpx;
+  position: relative;
+  overflow: hidden;
+  transform: translateY(0);
+  background-color: #efefef;
+  .indicator {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 16rpx;
+    display: flex;
+    justify-content: center;
+    .dot {
+      width: 30rpx;
+      height: 6rpx;
+      margin: 0 8rpx;
+      border-radius: 6rpx;
+      background-color: rgba(255, 255, 255, 0.4);
+    }
+    .active {
+      background-color: #fff;
+    }
+  }
+  .navigator,
+  .image {
+    width: 100%;
+    height: 100%;
+  }
+}
+</style>
