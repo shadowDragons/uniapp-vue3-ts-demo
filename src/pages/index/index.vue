@@ -1,11 +1,24 @@
 <script setup lang="ts">
+import { ref } from 'vue'
 import CustomNavBar from './componets/CustomNavbar.vue'
+import { getHomeBannerAPI } from '@/services/home'
+import type { BannerItem } from '@/types/home'
+import { onLoad } from '@dcloudio/uni-app'
+
+const bannerList = ref<BannerItem[]>([])
+const getHomeBannerData = async () => {
+  const res = await getHomeBannerAPI()
+  bannerList.value = res.result
+}
+
+onLoad(() => {
+  getHomeBannerData()
+})
 </script>
 
 <template>
   <CustomNavBar />
-  <XtxSwiper />
-  <view class="index">index1234</view>
+  <XtxSwiper :list="bannerList" />
 </template>
 
 <style lang="scss">
