@@ -1,8 +1,13 @@
 <script setup lang="ts">
+import type {
+  SkuPopupEvent,
+  SkuPopupInstance,
+  SkuPopupLocaldata,
+} from '@/components/vk-data-goods-sku-popup/vk-data-goods-sku-popup'
 import { getGoodsByIdAPI } from '@/services/goods'
 import type { GoodsResult } from '@/types/goods'
 import { onLoad } from '@dcloudio/uni-app'
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import AddressPanel from './components/AddressPanel.vue'
 import ServicePanel from './components/ServicePanel.vue'
 
@@ -19,6 +24,29 @@ const goods = ref<GoodsResult>()
 const getGoodsByIdData = async () => {
   const res = await getGoodsByIdAPI(query.id)
   goods.value = res.result
+  // SKU组件所需格式
+  localdata.value = {
+    _id: res.result.id,
+    name: res.result.name,
+    goods_thumb: res.result.mainPictures[0],
+    spec_list: res.result.specs.map((v) => {
+      return {
+        name: v.name,
+        list: v.values,
+      }
+    }),
+    sku_list: res.result.skus.map((v) => {
+      return {
+        _id: v.id,
+        goods_id: res.result.id,
+        goods_name: res.result.name,
+        image: v.picture,
+        price: v.price * 100, // 注意：需要乘以 100
+        stock: v.inventory,
+        sku_name_arr: v.specs.map((vv) => vv.valueName),
+      }
+    }),
+  }
 }
 
 // 页面加载
@@ -54,17 +82,67 @@ const openPopup = (name: typeof popupName.value) => {
   popupName.value = name
   popup.value?.open()
 }
+// 是否显示SKU组件
+const isShowSku = ref(false)
+// 商品信息
+const localdata = ref({} as SkuPopupLocaldata)
+// 按钮模式
+enum SkuMode {
+  Both = 1,
+  Cart = 2,
+  Buy = 3,
+}
+const mode = ref<SkuMode>(SkuMode.Cart)
+// 打开SKU弹窗修改按钮模式
+const openSkuPopup = (val: SkuMode) => {
+  // 显示SKU弹窗
+  isShowSku.value = true
+  // 修改按钮模式
+  mode.value = val
+}
+// SKU组件实例
+const skuPopupRef = ref<SkuPopupInstance>()
+// 计算被选中的值
+const selectArrText = computed(() => {
+  return skuPopupRef.value?.selectArr?.join(' ').trim() || '请选择商品规格'
+})
+// 加入购物车事件
+const onAddCart = async (ev: SkuPopupEvent) => {
+  await postMemberCartAPI({ skuId: ev._id, count: ev.buy_num })
+  uni.showToast({ title: '添加成功' })
+  isShowSku.value = false
+}
+// 立即购买
+const onBuyNow = (ev: SkuPopupEvent) => {
+  uni.navigateTo({ url: `/pagesOrder/create/create?skuId=${ev._id}&count=${ev.buy_num}` })
+}
 </script>
 
 <template>
-  <scroll-view scroll-y class="viewport">
+  <!-- SKU弹窗组件 -->
+  <vk-data-goods-sku-popup
+    v-model="isShowSku"
+    :localdata="localdata"
+    :mode="mode"
+    add-cart-background-color="#FFA868"
+    buy-now-background-color="#27BA9B"
+    ref="skuPopupRef"
+    :actived-style="{
+      color: '#27BA9B',
+      borderColor: '#27BA9B',
+      backgroundColor: '#E9F8F5',
+    }"
+    @add-cart="onAddCart"
+    @buy-now="onBuyNow"
+  />
+  <scroll-view enable-back-to-top scroll-y class="viewport">
     <!-- 基本信息 -->
     <view class="goods">
       <!-- 商品主图 -->
       <view class="preview">
         <swiper @change="onChange" circular>
           <swiper-item v-for="item in goods?.mainPictures" :key="item">
-            <image @tap="onTapImage(item)" mode="aspectFill" :src="item" />
+            <image class="image" @tap="onTapImage(item)" mode="aspectFill" :src="item" />
           </swiper-item>
         </swiper>
         <view class="indicator">
@@ -86,9 +164,9 @@ const openPopup = (name: typeof popupName.value) => {
 
       <!-- 操作面板 -->
       <view class="action">
-        <view class="item arrow">
+        <view @tap="openSkuPopup(SkuMode.Both)" class="item arrow">
           <text class="label">选择</text>
-          <text class="text ellipsis"> 请选择商品规格 </text>
+          <text class="text ellipsis"> {{ selectArrText }} </text>
         </view>
         <view @tap="openPopup('address')" class="item arrow">
           <text class="label">送至</text>
@@ -116,6 +194,7 @@ const openPopup = (name: typeof popupName.value) => {
         </view>
         <!-- 图片详情 -->
         <image
+          class="image"
           v-for="item in goods?.details.pictures"
           :key="item"
           mode="widthFix"
@@ -152,14 +231,18 @@ const openPopup = (name: typeof popupName.value) => {
   <view class="toolbar" :style="{ paddingBottom: safeAreaInsets?.bottom + 'px' }">
     <view class="icons">
       <button class="icons-button"><text class="icon-heart"></text>收藏</button>
+      <!-- #ifdef MP-WEIXIN -->
       <button class="icons-button" open-type="contact">
         <text class="icon-handset"></text>客服
       </button>
-      <navigator class="icons-button"><text class="icon-cart"></text>购物车</navigator>
+      <!-- #endif -->
+      <navigator class="icons-button" url="/pages/cart/cart2" open-type="navigate">
+        <text class="icon-cart"></text>购物车
+      </navigator>
     </view>
     <view class="buttons">
-      <view class="addcart"> 加入购物车 </view>
-      <view class="payment"> 立即购买 </view>
+      <view @tap="openSkuPopup(SkuMode.Cart)" class="addcart"> 加入购物车 </view>
+      <view @tap="openSkuPopup(SkuMode.Buy)" class="payment"> 立即购买 </view>
     </view>
   </view>
 
@@ -226,6 +309,10 @@ page {
   .preview {
     height: 750rpx;
     position: relative;
+    .image {
+      width: 750rpx;
+      height: 750rpx;
+    }
     .indicator {
       height: 40rpx;
       padding: 0 24rpx;
@@ -317,6 +404,9 @@ page {
   padding-left: 20rpx;
   .content {
     margin-left: -20rpx;
+    .image {
+      width: 100%;
+    }
   }
   .properties {
     padding: 0 20rpx;
@@ -340,21 +430,20 @@ page {
 
 /* 同类推荐 */
 .similar {
-  padding-left: 20rpx;
   .content {
     padding: 0 20rpx 20rpx;
-    margin-left: -20rpx;
     background-color: #f4f4f4;
-    overflow: hidden;
-    navigator {
-      width: 345rpx;
+    display: flex;
+    flex-wrap: wrap;
+    .goods {
+      width: 340rpx;
       padding: 24rpx 20rpx 20rpx;
-      margin: 20rpx 20rpx 0 0;
+      margin: 20rpx 7rpx;
       border-radius: 10rpx;
       background-color: #fff;
-      float: left;
     }
     .image {
+      width: 300rpx;
       height: 260rpx;
     }
     .name {
@@ -423,6 +512,9 @@ page {
       font-size: 20rpx;
       color: #333;
       background-color: #fff;
+      &::after {
+        border: none;
+      }
     }
     text {
       display: block;
